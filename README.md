@@ -1,51 +1,100 @@
-# ANSSI Advisories & Alerts Analysis and CVE Enrichment
 
-This project automates cybersecurity monitoring by processing ANSSI (CERT-FR) bulletins. It extracts vulnerabilities, enriches them with global criticality data, and generates visual analyses for risk management.
 
----
+# 🛡️ Vulnerability Monitoring & Alerting System
 
-## 📋 Project Overview
+This project is an automated security intelligence tool designed to scrape alerts from **ANSSI** (the French National Cybersecurity Agency), enrich them with technical data from global sources like **MITRE** and **FIRST**, and dispatch targeted email notifications to subscribers based on their specific technology stack.
 
-In a context of increasing cyber threats, rapid identification of vulnerabilities is crucial. This script addresses the lack of automation in ANSSI RSS feeds by transforming textual bulletins into structured, enriched data.
+## 🏗️ Project Architecture
 
-### Main Objectives:
-- **Automated Collection:** Extract advisories and alerts from the CERT-FR RSS feed.
-- **Smart Extraction:** Identify CVE codes using official JSON files and regular expressions (Regex).
-- **Data Enrichment:** Retrieve severity scores (CVSS) and vulnerability types (CWE) via the MITRE API, as well as exploitation probability via the EPSS API (FIRST).
-- **Analysis & Prioritization:** Create a visual dashboard to identify urgent issues.
+The application follows a four-stage pipeline to transform raw security bulletins into actionable intelligence:
 
----
-
-## 🛠️ Installation & Prerequisites
-
-### Prerequisites
-- Python 3.10 or higher.
-- Internet connection (for API calls).
-
-### Installing Libraries
-Use the following command to install the required dependencies:
-
-```bash
-pip install requests feedparser pandas matplotlib seaborn
-```
+1. **Data Extraction:** Automated scraping of the CERT-FR portal.
+2. **Data Enrichment:** Querying external APIs for technical metrics (CVSS, CWE, EPSS).
+3. **Data Consolidation:** Cleaning and structuring data using Pandas.
+4. **Alerting & Notification:** Intelligence-driven email dispatch for critical threats.
 
 ---
 
-## 🚀 How the Code Works
-### The project is divided into several key steps integrated into the pipeline:
+## 🔍 Data Extraction (ANSSI Scraping)
 
-- **Extraction** (Steps 1 & 2): The script parses the RSS feed and downloads the JSON versions of ANSSI bulletins to list CVEs.
-- **Enrichment** (Step 3): For each CVE, the script queries:
+The script targets the **ANSSI Alerte** webpage. It parses the HTML to find links to specific security bulletins.
 
-- **MITRE API**: To obtain the CVSS score (0-10), description, and affected product.
-- **EPSS API**: To obtain the exploitation probability score (0-1).
+* **Method:** For each bulletin, the script accesses its JSON representation directly.
+* **CVE Identification:** A Regex-based pattern-matching engine scans the bulletin content to extract all associated **CVE IDs** (Common Vulnerabilities and Exposures).
+* **Persistence:** To optimize performance, the system maintains a **processed_cves.json** file. It checks this file before processing a CVE to ensure that duplicates are not re-analyzed in subsequent runs.
 
-- **Consolidation** (Step 4): Data is cleaned and grouped into a file named donnees_consolidees.csv. If an ANSSI alert contains 10 CVEs, it will be repeated over 10 rows for granular analysis.
-- **Visualization** (Step 5): A Jupyter Notebook is used to generate charts (histograms, CVSS/EPSS scatter plots, pie charts).
-- **Alerting** (Step 6): Automatic email notification if a critical vulnerability is detected on a monitored product.
+---
 
+## 🚀 Data Enrichment (API Integration)
 
+Once a new CVE is identified, the system enriches the entry by communicating with two major cybersecurity databases:
 
+### **MITRE API (CVE AWG)**
 
-*Important Note: The script respects a 2-second delay between API requests to avoid overloading external servers (rate limiting).*
+* **CVSS Score:** Retrieves the Base Score to determine theoretical danger.
+* **CWE (Common Weakness Enumeration):** Identifies the type of software flaw (e.g., Buffer Overflow, SQL Injection).
+* **Affected Scope:** Extracts the specific Vendor, Product name, and Version strings impacted by the vulnerability.
+
+### **FIRST API (EPSS)**
+
+* **Exploit Prediction:** Retrieves the **EPSS score**, which represents the probability (0 to 1) that the vulnerability will be exploited in the wild within the next 30 days. This allows for risk-based prioritization rather than just severity-based.
+
+---
+
+## 📊 Data Consolidation (Pandas)
+
+All extracted and enriched data is gathered into a **Pandas DataFrame**. This stage ensures data integrity and portability:
+
+* **Cleaning:** The system removes tabulations, newlines, and redundant whitespaces to ensure the final report is readable.
+* **Severity Mapping:** A custom function maps numerical CVSS scores to qualitative categories: **Low, Medium, High, or Critical**.
+* **Export:** The final consolidated dataset is saved as **donnees_consolidees.csv**, which serves as a master record for auditing or further analysis in tools like Excel or Jupyter Notebook.
+
+---
+
+## 📧 Alerting & Email Notification System
+
+The final phase of the script is an intelligent notification engine located in the **main.py** file. It ensures that the right information reaches the right person.
+
+### **Subscription Logic**
+
+The system uses a **Subscription Dictionary** where users are mapped to specific keywords (e.g., "Fortinet", "Cisco", "SharePoint").
+
+* **Filtering:** The engine only processes vulnerabilities marked as **Critical**.
+* **Matching:** For every critical CVE, the script compares the **Vendor**, **Product**, and **ANSSI Title** against the user's subscription list.
+
+### **SMTP Implementation**
+
+The system utilizes the **smtplib** and **email.mime** libraries to deliver alerts:
+
+* **Security:** It uses **STARTTLS** for encrypted communication with the Gmail SMTP server.
+* **Automation:** If a match is found, a detailed email is generated automatically, containing the CVE ID, a technical description, the CVSS/EPSS scores, and the direct link to the ANSSI alert.
+* **Unidentified Threats:** A fallback mechanism exists for "Unknown" vendors, ensuring that critical alerts without a clear editor are still sent to a general security administrator.
+
+---
+
+## 📈 Visual Demonstration (Jupyter Notebook)
+
+The accompanying video demonstrates the execution of a **Jupyter Notebook** that visualizes the collected data.
+
+* **Severity Distribution:** Graphical representation of the threat landscape.
+* **Top Affected Vendors:** Identification of which software editors are currently most vulnerable.
+* **CWE Analysis:** Pie charts showing the most common types of vulnerabilities (e.g., CWE-89 for SQL Injection).
+
+---
+
+## 🛠️ Setup and Execution
+
+### **Prerequisites**
+
+* Python 3.8 or higher.
+* Required Libraries: **requests, pandas, smtplib, matplotlib, seaborn**.
+
+### **Configuration**
+
+To enable email alerts, update the **send_email** function in **main.py** with a valid Gmail App Password.
+
+### **Run the Analysis**
+
+Run the following command to start the full pipeline:
+`python main.py`
 
